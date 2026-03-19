@@ -109,33 +109,48 @@ function CameraView({ onCapture, label, mirrored = true }) {
   const [error, setError] = useState(null);
 
   const startCamera = async () => {
+    setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: mirrored ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
-      const video = videoRef.current;
-      if (video) {
-        video.srcObject = stream;
-        video.setAttribute("playsinline", "true");
-        video.setAttribute("webkit-playsinline", "true");
-        // Wait for video dimensions to be available before enabling capture
-        video.onloadedmetadata = () => {
-          video.play().then(() => setReady(true)).catch(() => setReady(true));
-        };
-      }
-      setActive(true); setError(null);
+      setActive(true); // render the video element first
     } catch { setError("Camera access denied. Please allow camera permissions."); }
   };
 
+  // Bind stream to video element AFTER it's rendered in DOM
+  useEffect(() => {
+    if (!active || !streamRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.srcObject = streamRef.current;
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
+
+    const onPlaying = () => setReady(true);
+    video.addEventListener("playing", onPlaying);
+
+    video.play().catch(() => {});
+
+    // Fallback: if "playing" event never fires, enable capture after 2s
+    const fallback = setTimeout(() => setReady(true), 2000);
+
+    return () => {
+      video.removeEventListener("playing", onPlaying);
+      clearTimeout(fallback);
+    };
+  }, [active]);
+
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
     setActive(false); setReady(false);
   };
 
   const capture = () => {
     const v = videoRef.current; if (!v) return;
-    // Use fallback dimensions if videoWidth is still 0
     const w = v.videoWidth || v.clientWidth || 640;
     const h = v.videoHeight || v.clientHeight || 480;
     const c = document.createElement("canvas"); c.width = w; c.height = h;
@@ -143,7 +158,6 @@ function CameraView({ onCapture, label, mirrored = true }) {
     if (mirrored) { ctx.translate(w, 0); ctx.scale(-1, 1); }
     ctx.drawImage(v, 0, 0, w, h);
     const dataUrl = c.toDataURL("image/jpeg", 0.85);
-    // Verify capture isn't empty
     if (dataUrl.length < 1000) {
       setError("Capture failed — please wait a moment and try again.");
       return;
@@ -151,7 +165,7 @@ function CameraView({ onCapture, label, mirrored = true }) {
     stopCamera(); onCapture(dataUrl);
   };
 
-  useEffect(() => () => streamRef.current?.getTracks().forEach(t => t.stop()), []);
+  useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
 
   return (
     <div style={{ textAlign: "center" }}>
