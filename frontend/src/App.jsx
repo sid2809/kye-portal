@@ -13,7 +13,7 @@ const inputStyle = {
   width: "100%", padding: "12px 16px", border: "2px solid #e2e8f0",
   borderRadius: 10, fontSize: 15, fontFamily: "inherit", outline: "none",
   transition: "border-color 0.2s, box-shadow 0.2s", background: "#fafbfc",
-  boxSizing: "border-box",
+  boxSizing: "border-box", height: 48, WebkitAppearance: "none",
 };
 const labelStyle = {
   display: "block", fontSize: 13, fontWeight: 600, color: "#475569",
@@ -708,12 +708,12 @@ function KYEForm() {
                   <Field label="Email"><input style={inputStyle} type="email" value={form.email} onChange={e => u("email", e.target.value)} /></Field>
                 </div>
                 <div style={{ gridColumn: "1/-1" }}>
-                  <Field label="Current Address *"><textarea style={{ ...inputStyle, minHeight: 56, resize: "vertical" }} value={form.currentAddress} onChange={e => u("currentAddress", e.target.value)} /></Field>
+                  <Field label="Current Address *"><textarea style={{ ...inputStyle, height: "auto", minHeight: 56, resize: "vertical" }} value={form.currentAddress} onChange={e => u("currentAddress", e.target.value)} /></Field>
                 </div>
                 <Field label="PIN Code *"><input style={inputStyle} inputMode="numeric" value={form.pinCode} onChange={e => u("pinCode", e.target.value)} maxLength={6} /></Field>
                 <Field label="Nationality"><input style={inputStyle} value={form.nationality} onChange={e => u("nationality", e.target.value)} /></Field>
                 <div style={{ gridColumn: "1/-1" }}>
-                  <Field label="Permanent Address (if different)"><textarea style={{ ...inputStyle, minHeight: 56, resize: "vertical" }} value={form.permanentAddress} onChange={e => u("permanentAddress", e.target.value)} /></Field>
+                  <Field label="Permanent Address (if different)"><textarea style={{ ...inputStyle, height: "auto", minHeight: 56, resize: "vertical" }} value={form.permanentAddress} onChange={e => u("permanentAddress", e.target.value)} /></Field>
                 </div>
 
                 <div style={{ gridColumn: "1/-1", margin: "6px 0", borderTop: "1px solid #f1f5f9", paddingTop: 14 }}>
