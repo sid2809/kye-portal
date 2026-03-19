@@ -210,15 +210,28 @@ function VideoRecorder({ onRecord }) {
   const [error, setError] = useState(null);
 
   const startCamera = async () => {
+    setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true,
       });
       streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
-      setPhase("preview"); setError(null);
+      setPhase("preview"); // render video element first, then bind in useEffect
     } catch { setError("Camera/microphone access denied."); }
   };
+
+  // Bind stream to video element AFTER it's rendered
+  useEffect(() => {
+    if (phase !== "preview" && phase !== "recording") return;
+    const video = videoRef.current;
+    if (!video || !streamRef.current) return;
+    if (!video.srcObject) {
+      video.srcObject = streamRef.current;
+      video.setAttribute("playsinline", "true");
+      video.setAttribute("webkit-playsinline", "true");
+      video.play().catch(() => {});
+    }
+  }, [phase]);
 
   const startRecording = () => {
     chunksRef.current = [];
