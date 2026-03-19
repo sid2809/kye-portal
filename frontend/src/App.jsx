@@ -442,7 +442,19 @@ function AdminDashboard() {
                   )}
                 </div>
 
-                <div style={{ marginTop: 16, fontSize: 11, color: "#94a3b8" }}>
+                {sub.latitude && sub.longitude && (
+                  <div style={{ marginTop: 12, background: "#f0fdf4", borderRadius: 8, padding: "10px 14px", border: "1px solid #86efac", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>📍</span>
+                    <div style={{ fontSize: 13 }}>
+                      <a href={`https://www.google.com/maps?q=${sub.latitude},${sub.longitude}`} target="_blank" rel="noopener noreferrer" style={{ color: "#166534", fontWeight: 600 }}>
+                        {sub.latitude.toFixed(6)}, {sub.longitude.toFixed(6)}
+                      </a>
+                      {sub.location_accuracy && <span style={{ color: "#64748b", fontSize: 11, marginLeft: 8 }}>(±{Math.round(sub.location_accuracy)}m)</span>}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ marginTop: 12, fontSize: 11, color: "#94a3b8" }}>
                   ID: <span style={{ fontFamily: MONO }}>{sub.id}</span> • IP: {sub.ip_address || "—"}
                 </div>
               </div>
@@ -459,6 +471,9 @@ function AdminDashboard() {
 // ---------------------------------------------------------------------------
 function KYEForm() {
   const [step, setStep] = useState(0);
+  const [location, setLocation] = useState(null); // { lat, lng, accuracy, timestamp }
+  const [locationError, setLocationError] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(true);
   const [form, setForm] = useState({
     fullName: "", dob: "", fatherName: "", gender: "", nationality: "Indian",
     phone: "", email: "", currentAddress: "", pinCode: "", permanentAddress: "",
@@ -472,6 +487,37 @@ function KYEForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
+
+  // Request location on mount
+  const requestLocation = () => {
+    setLocationLoading(true);
+    setLocationError(null);
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser.");
+      setLocationLoading(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          timestamp: new Date(pos.timestamp).toISOString(),
+        });
+        setLocationLoading(false);
+      },
+      (err) => {
+        if (err.code === 1) setLocationError("Location permission denied. This is mandatory for KYE verification. Please allow location access and try again.");
+        else if (err.code === 2) setLocationError("Location unavailable. Please check your device settings and try again.");
+        else setLocationError("Location request timed out. Please try again.");
+        setLocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
+  useEffect(() => { requestLocation(); }, []);
 
   const DOC_LABELS = [
     { key: "aadhaarFront", label: "Aadhaar Card — Front" },
@@ -502,6 +548,7 @@ function KYEForm() {
         additionalId: docs.additional || null,
         video: video.base64,
         videoExt: video.ext || "webm",
+        location,
       };
       const res = await fetch("/api/submit", {
         method: "POST",
@@ -537,6 +584,39 @@ function KYEForm() {
               🎬 Live video — recorded
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Location gate — must grant location before proceeding
+  if (!location) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #f0f9ff, #e8f4f8)" }}>
+        <div style={{ textAlign: "center", maxWidth: 420, padding: 40, background: "#fff", borderRadius: 20, boxShadow: "0 8px 40px rgba(15,61,92,0.08)", margin: "0 20px" }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: locationError ? "#fef2f2" : ACCENT_LIGHT, margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+            {locationLoading ? "⏳" : "📍"}
+          </div>
+          <h2 style={{ fontSize: 20, color: ACCENT, margin: "0 0 8px", fontWeight: 800 }}>Location Required</h2>
+          <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+            {locationLoading
+              ? "Requesting your location..."
+              : "KYE verification requires your live location to confirm you are completing this in person. Please allow location access to continue."}
+          </p>
+          {locationError && (
+            <InfoBox color="#dc2626" bg="#fef2f2" border="#fecaca">{locationError}</InfoBox>
+          )}
+          {!locationLoading && (
+            <button onClick={requestLocation} style={{ ...btnPrimary, width: "100%" }}>
+              📍 Allow Location & Continue
+            </button>
+          )}
+          {locationLoading && (
+            <div style={{ color: "#94a3b8", fontSize: 13 }}>
+              <span style={{ display: "inline-block", width: 16, height: 16, border: "2px solid #e2e8f0", borderTopColor: ACCENT, borderRadius: "50%", animation: "spin 0.6s linear infinite", verticalAlign: "middle", marginRight: 8 }} />
+              Fetching location...
+            </div>
+          )}
         </div>
       </div>
     );
@@ -702,6 +782,16 @@ function KYEForm() {
                   ].map(([l, v]) => <div key={l}><span style={{ color: "#94a3b8", fontSize: 11 }}>{l}</span><br />{v}</div>)}
                 </div>
               </div>
+
+              {location && (
+                <div style={{ background: "#f0fdf4", borderRadius: 12, padding: 14, marginBottom: 16, border: "1px solid #86efac", display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#166534" }}>
+                  <span style={{ fontSize: 18 }}>📍</span>
+                  <div>
+                    <strong>Location captured</strong> — {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                    <span style={{ color: "#64748b", fontSize: 11, marginLeft: 8 }}>(±{Math.round(location.accuracy)}m)</span>
+                  </div>
+                </div>
+              )}
 
               <div style={{ background: "#f8fafc", borderRadius: 12, padding: 18, marginBottom: 16, border: "1px solid #e2e8f0" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Captured Media</div>
