@@ -66,9 +66,18 @@ def init_db():
                 video_path TEXT,
                 submitted_at TEXT NOT NULL,
                 ip_address TEXT,
-                user_agent TEXT
+                user_agent TEXT,
+                latitude REAL,
+                longitude REAL,
+                location_accuracy REAL,
+                location_timestamp TEXT
             )
         """)
+        # Migrate: add location columns if missing (for existing DBs)
+        existing = {row[1] for row in db.execute("PRAGMA table_info(submissions)").fetchall()}
+        for col, ctype in [("latitude", "REAL"), ("longitude", "REAL"), ("location_accuracy", "REAL"), ("location_timestamp", "TEXT")]:
+            if col not in existing:
+                db.execute(f"ALTER TABLE submissions ADD COLUMN {col} {ctype}")
         db.commit()
 
 
@@ -106,6 +115,13 @@ class FormData(BaseModel):
     ifsc: Optional[str] = ""
 
 
+class LocationData(BaseModel):
+    lat: float
+    lng: float
+    accuracy: Optional[float] = None
+    timestamp: Optional[str] = None
+
+
 class SubmissionPayload(BaseModel):
     form: FormData
     facePhoto: str          # base64 data URL
@@ -115,6 +131,7 @@ class SubmissionPayload(BaseModel):
     additionalId: Optional[str] = None  # base64 data URL or null
     video: str              # base64 data URL (webm or mp4)
     videoExt: Optional[str] = "webm"    # "webm" or "mp4" (Safari)
+    location: Optional[LocationData] = None
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +249,8 @@ async def submit_verification(payload: SubmissionPayload, request: Request):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"File processing error: {str(e)}")
 
+    loc = payload.location
+
     with get_db() as db:
         db.execute("""
             INSERT INTO submissions (
@@ -242,8 +261,9 @@ async def submit_verification(payload: SubmissionPayload, request: Request):
                 bank_name, account_number, ifsc,
                 face_photo_path, aadhaar_front_path, aadhaar_back_path,
                 pan_path, additional_id_path, video_path,
-                submitted_at, ip_address, user_agent
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                submitted_at, ip_address, user_agent,
+                latitude, longitude, location_accuracy, location_timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             submission_id, f.fullName, f.dob, f.fatherName, f.gender, f.nationality,
             f.phone, f.email, f.currentAddress, f.pinCode, f.permanentAddress,
@@ -253,6 +273,8 @@ async def submit_verification(payload: SubmissionPayload, request: Request):
             face_path, aadhaar_front_path, aadhaar_back_path,
             pan_path, additional_path, video_path,
             ts, request.client.host, request.headers.get("user-agent", ""),
+            loc.lat if loc else None, loc.lng if loc else None,
+            loc.accuracy if loc else None, loc.timestamp if loc else None,
         ))
         db.commit()
 
