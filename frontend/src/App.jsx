@@ -75,13 +75,13 @@ function Thumbnail({ src, label, onRemove }) {
     <div style={{
       display: "inline-flex", flexDirection: "column", alignItems: "center",
       background: "#f8fafc", border: "2px solid #e2e8f0", borderRadius: 12,
-      padding: 10, position: "relative", width: 130,
+      padding: 8, position: "relative", width: 120, minWidth: 100, flex: "0 0 auto",
     }}>
-      <img src={src} alt={label} style={{ width: 110, height: 82, objectFit: "cover", borderRadius: 8 }} />
-      <span style={{ fontSize: 10, fontWeight: 600, color: "#64748b", marginTop: 5 }}>{label}</span>
+      <img src={src} alt={label} style={{ width: "100%", height: 75, objectFit: "cover", borderRadius: 8 }} />
+      <span style={{ fontSize: 9, fontWeight: 600, color: "#64748b", marginTop: 4, textAlign: "center", lineHeight: 1.3 }}>{label}</span>
       {onRemove && (
         <button onClick={onRemove} style={{
-          position: "absolute", top: 4, right: 4, width: 22, height: 22,
+          position: "absolute", top: 2, right: 2, width: 22, height: 22,
           borderRadius: "50%", border: "none", background: "#ef4444", color: "#fff",
           fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
         }}>×</button>
@@ -268,6 +268,7 @@ function VideoRecorder({ onRecord }) {
     clearInterval(timerRef.current);
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
     setPhase("idle");
   };
 
@@ -339,8 +340,8 @@ function AdminDashboard() {
 
   if (!authed) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #f0f9ff, #e8f4f8)" }}>
-        <div style={{ background: "#fff", padding: 40, borderRadius: 20, boxShadow: "0 8px 40px rgba(15,61,92,0.08)", maxWidth: 400, width: "100%", textAlign: "center" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #f0f9ff, #e8f4f8)", padding: 20 }}>
+        <div style={{ background: "#fff", padding: "32px 24px", borderRadius: 20, boxShadow: "0 8px 40px rgba(15,61,92,0.08)", maxWidth: 400, width: "100%", textAlign: "center" }}>
           <div style={{ width: 56, height: 56, borderRadius: 14, background: ACCENT, margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🔒</div>
           <h2 style={{ fontSize: 22, color: ACCENT, margin: "0 0 8px", fontWeight: 800 }}>Admin Access</h2>
           <p style={{ color: "#94a3b8", fontSize: 14, marginBottom: 24 }}>Enter the admin password to view submissions.</p>
@@ -408,7 +409,7 @@ function AdminDashboard() {
             {/* Expanded details */}
             {expanded === sub.id && (
               <div style={{ padding: "0 24px 24px", borderTop: "1px solid #f1f5f9" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px 24px", fontSize: 14, color: "#334155", marginTop: 16, marginBottom: 20 }}>
+                <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px 24px", fontSize: 14, color: "#334155", marginTop: 16, marginBottom: 20 }}>
                   {[
                     ["DOB", sub.dob], ["Gender", sub.gender], ["Nationality", sub.nationality],
                     ["Email", sub.email], ["Address", sub.current_address], ["PIN", sub.pin_code],
@@ -471,8 +472,9 @@ function AdminDashboard() {
 // ---------------------------------------------------------------------------
 function KYEForm() {
   const [step, setStep] = useState(0);
-  const [location, setLocation] = useState(null); // { lat, lng, accuracy, timestamp }
+  const [location, setLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
+  const [locationDenied, setLocationDenied] = useState(false);
   const [locationLoading, setLocationLoading] = useState(true);
   const [form, setForm] = useState({
     fullName: "", dob: "", fatherName: "", gender: "", nationality: "Indian",
@@ -488,7 +490,6 @@ function KYEForm() {
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  // Request location on mount
   const requestLocation = () => {
     setLocationLoading(true);
     setLocationError(null);
@@ -497,6 +498,23 @@ function KYEForm() {
       setLocationLoading(false);
       return;
     }
+    // Check permission state first (if supported)
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: "geolocation" }).then((result) => {
+        if (result.state === "denied") {
+          setLocationDenied(true);
+          setLocationError("blocked");
+          setLocationLoading(false);
+          return;
+        }
+        doGeoRequest();
+      }).catch(() => doGeoRequest());
+    } else {
+      doGeoRequest();
+    }
+  };
+
+  const doGeoRequest = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocation({
@@ -506,11 +524,17 @@ function KYEForm() {
           timestamp: new Date(pos.timestamp).toISOString(),
         });
         setLocationLoading(false);
+        setLocationDenied(false);
       },
       (err) => {
-        if (err.code === 1) setLocationError("Location permission denied. This is mandatory for KYE verification. Please allow location access and try again.");
-        else if (err.code === 2) setLocationError("Location unavailable. Please check your device settings and try again.");
-        else setLocationError("Location request timed out. Please try again.");
+        if (err.code === 1) {
+          setLocationDenied(true);
+          setLocationError("blocked");
+        } else if (err.code === 2) {
+          setLocationError("Location unavailable. Please check your device settings.");
+        } else {
+          setLocationError("Location request timed out. Please try again.");
+        }
         setLocationLoading(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -523,7 +547,7 @@ function KYEForm() {
     { key: "aadhaarFront", label: "Aadhaar Card — Front" },
     { key: "aadhaarBack", label: "Aadhaar Card — Back" },
     { key: "pan", label: "PAN Card" },
-    { key: "additional", label: "Additional ID (Optional)" },
+    { key: "additional", label: "Additional ID" },
   ];
 
   const u = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -568,8 +592,8 @@ function KYEForm() {
 
   if (submitted) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #f0f9ff, #e8f4f8)" }}>
-        <div style={{ textAlign: "center", maxWidth: 500, padding: 40, animation: "fadeIn 0.5s ease" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #f0f9ff, #e8f4f8)", padding: 20 }}>
+        <div style={{ textAlign: "center", maxWidth: 500, width: "100%", padding: "32px 24px", animation: "fadeIn 0.5s ease" }}>
           <div style={{ width: 80, height: 80, borderRadius: "50%", background: SUCCESS, margin: "0 auto 24px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "#fff" }}>✓</div>
           <h1 style={{ fontSize: 28, color: ACCENT, margin: "0 0 12px" }}>Verification Complete</h1>
           <p style={{ color: "#64748b", fontSize: 16, lineHeight: 1.6 }}>
@@ -592,30 +616,51 @@ function KYEForm() {
   // Location gate — must grant location before proceeding
   if (!location) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #f0f9ff, #e8f4f8)" }}>
-        <div style={{ textAlign: "center", maxWidth: 420, padding: 40, background: "#fff", borderRadius: 20, boxShadow: "0 8px 40px rgba(15,61,92,0.08)", margin: "0 20px" }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: locationError ? "#fef2f2" : ACCENT_LIGHT, margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
-            {locationLoading ? "⏳" : "📍"}
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #f0f9ff, #e8f4f8)", padding: 20 }}>
+        <div style={{ textAlign: "center", maxWidth: 400, width: "100%", padding: "32px 24px", background: "#fff", borderRadius: 20, boxShadow: "0 8px 40px rgba(15,61,92,0.08)" }}>
+          <div style={{ width: 60, height: 60, borderRadius: "50%", background: locationDenied ? "#fef2f2" : ACCENT_LIGHT, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>
+            {locationLoading ? "⏳" : locationDenied ? "🚫" : "📍"}
           </div>
           <h2 style={{ fontSize: 20, color: ACCENT, margin: "0 0 8px", fontWeight: 800 }}>Location Required</h2>
-          <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
-            {locationLoading
-              ? "Requesting your location..."
-              : "KYE verification requires your live location to confirm you are completing this in person. Please allow location access to continue."}
-          </p>
-          {locationError && (
-            <InfoBox color="#dc2626" bg="#fef2f2" border="#fecaca">{locationError}</InfoBox>
-          )}
-          {!locationLoading && (
-            <button onClick={requestLocation} style={{ ...btnPrimary, width: "100%" }}>
-              📍 Allow Location & Continue
-            </button>
-          )}
+
           {locationLoading && (
-            <div style={{ color: "#94a3b8", fontSize: 13 }}>
+            <div style={{ color: "#94a3b8", fontSize: 14, marginTop: 20 }}>
               <span style={{ display: "inline-block", width: 16, height: 16, border: "2px solid #e2e8f0", borderTopColor: ACCENT, borderRadius: "50%", animation: "spin 0.6s linear infinite", verticalAlign: "middle", marginRight: 8 }} />
               Fetching location...
             </div>
+          )}
+
+          {!locationLoading && !locationDenied && (
+            <>
+              <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+                KYE verification requires your live location. Please allow location access to continue.
+              </p>
+              {locationError && locationError !== "blocked" && (
+                <InfoBox color="#dc2626" bg="#fef2f2" border="#fecaca">{locationError}</InfoBox>
+              )}
+              <button onClick={requestLocation} style={{ ...btnPrimary, width: "100%", padding: "16px 24px" }}>
+                📍 Allow Location & Continue
+              </button>
+            </>
+          )}
+
+          {!locationLoading && locationDenied && (
+            <>
+              <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.6, margin: "0 0 16px" }}>
+                Location access was blocked. You need to enable it manually in your browser settings to proceed.
+              </p>
+              <div style={{ background: "#f8fafc", borderRadius: 12, padding: 16, textAlign: "left", marginBottom: 20, border: "1px solid #e2e8f0" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: ACCENT, marginBottom: 10 }}>How to enable location:</div>
+                <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.8 }}>
+                  <strong>Chrome (Android):</strong> Tap the 🔒 icon in the address bar → Permissions → Location → Allow<br /><br />
+                  <strong>Safari (iPhone):</strong> Go to Settings → Safari → Location → Allow<br /><br />
+                  <strong>Any browser:</strong> Tap the lock/tune icon next to the URL → Site settings → Location → Allow
+                </div>
+              </div>
+              <button onClick={() => window.location.reload()} style={{ ...btnPrimary, width: "100%", padding: "16px 24px" }}>
+                🔄 I've Enabled It — Reload Page
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -647,7 +692,7 @@ function KYEForm() {
             <div>
               <h2 style={{ fontSize: 20, color: ACCENT, margin: "0 0 4px", fontWeight: 800 }}>Personal Details</h2>
               <p style={{ color: "#94a3b8", fontSize: 13, margin: "0 0 22px" }}>Fill in your information as per government-issued ID.</p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+              <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
                 <div style={{ gridColumn: "1/-1" }}>
                   <Field label="Full Name *"><input style={inputStyle} value={form.fullName} onChange={e => u("fullName", e.target.value)} placeholder="As per Aadhaar/PAN" /></Field>
                 </div>
@@ -658,14 +703,14 @@ function KYEForm() {
                   </select>
                 </Field>
                 <Field label="Father's / Mother's Name"><input style={inputStyle} value={form.fatherName} onChange={e => u("fatherName", e.target.value)} /></Field>
-                <Field label="Phone Number *"><input style={inputStyle} value={form.phone} onChange={e => u("phone", e.target.value)} placeholder="+91 ..." /></Field>
+                <Field label="Phone Number *"><input style={inputStyle} type="tel" value={form.phone} onChange={e => u("phone", e.target.value)} placeholder="+91 ..." /></Field>
                 <div style={{ gridColumn: "1/-1" }}>
                   <Field label="Email"><input style={inputStyle} type="email" value={form.email} onChange={e => u("email", e.target.value)} /></Field>
                 </div>
                 <div style={{ gridColumn: "1/-1" }}>
                   <Field label="Current Address *"><textarea style={{ ...inputStyle, minHeight: 56, resize: "vertical" }} value={form.currentAddress} onChange={e => u("currentAddress", e.target.value)} /></Field>
                 </div>
-                <Field label="PIN Code *"><input style={inputStyle} value={form.pinCode} onChange={e => u("pinCode", e.target.value)} maxLength={6} /></Field>
+                <Field label="PIN Code *"><input style={inputStyle} inputMode="numeric" value={form.pinCode} onChange={e => u("pinCode", e.target.value)} maxLength={6} /></Field>
                 <Field label="Nationality"><input style={inputStyle} value={form.nationality} onChange={e => u("nationality", e.target.value)} /></Field>
                 <div style={{ gridColumn: "1/-1" }}>
                   <Field label="Permanent Address (if different)"><textarea style={{ ...inputStyle, minHeight: 56, resize: "vertical" }} value={form.permanentAddress} onChange={e => u("permanentAddress", e.target.value)} /></Field>
@@ -674,7 +719,7 @@ function KYEForm() {
                 <div style={{ gridColumn: "1/-1", margin: "6px 0", borderTop: "1px solid #f1f5f9", paddingTop: 14 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.06em" }}>ID Numbers</span>
                 </div>
-                <Field label="Aadhaar Number *"><input style={inputStyle} value={form.aadhaarNumber} onChange={e => u("aadhaarNumber", e.target.value)} maxLength={14} placeholder="XXXX XXXX XXXX" /></Field>
+                <Field label="Aadhaar Number *"><input style={inputStyle} inputMode="numeric" value={form.aadhaarNumber} onChange={e => u("aadhaarNumber", e.target.value)} maxLength={14} placeholder="XXXX XXXX XXXX" /></Field>
                 <Field label="PAN Number *"><input style={inputStyle} value={form.panNumber} onChange={e => u("panNumber", e.target.value)} maxLength={10} placeholder="ABCDE1234F" /></Field>
 
                 <div style={{ gridColumn: "1/-1", margin: "6px 0", borderTop: "1px solid #f1f5f9", paddingTop: 14 }}>
@@ -682,13 +727,13 @@ function KYEForm() {
                 </div>
                 <Field label="Contact Name"><input style={inputStyle} value={form.emergencyName} onChange={e => u("emergencyName", e.target.value)} /></Field>
                 <Field label="Relationship"><input style={inputStyle} value={form.emergencyRelation} onChange={e => u("emergencyRelation", e.target.value)} /></Field>
-                <Field label="Contact Phone"><input style={inputStyle} value={form.emergencyPhone} onChange={e => u("emergencyPhone", e.target.value)} /></Field>
+                <Field label="Contact Phone"><input style={inputStyle} type="tel" value={form.emergencyPhone} onChange={e => u("emergencyPhone", e.target.value)} /></Field>
 
                 <div style={{ gridColumn: "1/-1", margin: "6px 0", borderTop: "1px solid #f1f5f9", paddingTop: 14 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.06em" }}>Bank Details</span>
                 </div>
                 <Field label="Bank Name"><input style={inputStyle} value={form.bankName} onChange={e => u("bankName", e.target.value)} /></Field>
-                <Field label="Account Number"><input style={inputStyle} value={form.accountNumber} onChange={e => u("accountNumber", e.target.value)} /></Field>
+                <Field label="Account Number"><input style={inputStyle} inputMode="numeric" value={form.accountNumber} onChange={e => u("accountNumber", e.target.value)} /></Field>
                 <Field label="IFSC Code"><input style={inputStyle} value={form.ifsc} onChange={e => u("ifsc", e.target.value)} placeholder="e.g. SBIN0001234" /></Field>
               </div>
             </div>
@@ -722,7 +767,7 @@ function KYEForm() {
                   docs[key] ? (
                     <Thumbnail key={key} src={docs[key]} label={label} onRemove={() => setDocs(p => ({ ...p, [key]: null }))} />
                   ) : (
-                    <div key={key} style={{ width: 130, height: 110, border: "2px dashed #cbd5e1", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8", textAlign: "center", padding: 8 }}>
+                    <div key={key} style={{ width: 120, minWidth: 100, height: 100, border: "2px dashed #cbd5e1", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8", textAlign: "center", padding: 8, flex: "0 0 auto" }}>
                       {label}
                     </div>
                   )
@@ -730,17 +775,17 @@ function KYEForm() {
               </div>
               {(() => {
                 const pending = DOC_LABELS.filter(({ key }) => !docs[key]);
-                if (pending.length === 0) return <InfoBox color={SUCCESS} bg="#f0fdf4" border="#86efac"><strong>✓ All required documents captured</strong></InfoBox>;
+                if (pending.length === 0) return <InfoBox color={SUCCESS} bg="#f0fdf4" border="#86efac"><strong>✓ All documents captured</strong></InfoBox>;
                 const cur = pending[0];
                 return (
                   <div>
                     <div style={{ textAlign: "center", marginBottom: 12, fontSize: 14, fontWeight: 600, color: ACCENT }}>
-                      Now: {cur.label} {cur.key === "additional" && "(optional)"}
+                      Now: {cur.label}
                     </div>
                     <CameraView key={cur.key} label={cur.label} mirrored={false} onCapture={img => setDocs(p => ({ ...p, [cur.key]: img }))} />
                     {cur.key === "additional" && !docs.additional && (
                       <div style={{ textAlign: "center", marginTop: 12 }}>
-                        <span style={{ fontSize: 13, color: "#94a3b8" }}>This is optional — you can skip and proceed.</span>
+                        <span style={{ fontSize: 13, color: "#94a3b8" }}>This is optional — press <strong>Next</strong> to skip.</span>
                       </div>
                     )}
                   </div>
@@ -759,7 +804,7 @@ function KYEForm() {
               </InfoBox>
               {video ? (
                 <div style={{ textAlign: "center" }}>
-                  <video src={video.url} controls style={{ maxWidth: 400, borderRadius: 12, border: "2px solid #e2e8f0" }} />
+                  <video src={video.url} controls style={{ width: "100%", maxWidth: 400, borderRadius: 12, border: "2px solid #e2e8f0" }} />
                   <div style={{ marginTop: 12 }}><button onClick={() => setVideo(null)} style={{ ...btnSecondary, padding: "8px 20px", fontSize: 13 }}>Re-record</button></div>
                 </div>
               ) : (
@@ -776,7 +821,7 @@ function KYEForm() {
 
               <div style={{ background: "#f8fafc", borderRadius: 12, padding: 18, marginBottom: 16, border: "1px solid #e2e8f0" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Personal Info</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 20px", fontSize: 13, color: "#334155" }}>
+                <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 20px", fontSize: 13, color: "#334155" }}>
                   {[["Name", form.fullName], ["DOB", form.dob], ["Phone", form.phone], ["Email", form.email || "—"],
                     ["Address", form.currentAddress], ["PIN", form.pinCode], ["Aadhaar", form.aadhaarNumber], ["PAN", form.panNumber],
                   ].map(([l, v]) => <div key={l}><span style={{ color: "#94a3b8", fontSize: 11 }}>{l}</span><br />{v}</div>)}
@@ -788,7 +833,7 @@ function KYEForm() {
                   <span style={{ fontSize: 18 }}>📍</span>
                   <div>
                     <strong>Location captured</strong> — {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-                    <span style={{ color: "#64748b", fontSize: 11, marginLeft: 8 }}>(±{Math.round(location.accuracy)}m)</span>
+                    {location.accuracy != null && <span style={{ color: "#64748b", fontSize: 11, marginLeft: 8 }}>(±{Math.round(location.accuracy)}m)</span>}
                   </div>
                 </div>
               )}
@@ -801,7 +846,7 @@ function KYEForm() {
                 </div>
                 {video && (
                   <div style={{ marginTop: 12 }}>
-                    <video src={video.url} controls style={{ maxWidth: 280, borderRadius: 10, border: "1px solid #e2e8f0" }} />
+                    <video src={video.url} controls style={{ width: "100%", maxWidth: 300, borderRadius: 10, border: "1px solid #e2e8f0" }} />
                   </div>
                 )}
               </div>
@@ -815,19 +860,19 @@ function KYEForm() {
           )}
 
           {/* Navigation */}
-          <div style={{ display: "flex", justifyContent: step === 0 ? "flex-end" : "space-between", marginTop: 28, paddingTop: 18, borderTop: "1px solid #f1f5f9" }}>
-            {step > 0 && <button onClick={prev} style={btnSecondary}>← Back</button>}
+          <div className="nav-bar" style={{ display: "flex", justifyContent: step === 0 ? "flex-end" : "space-between", marginTop: 28, paddingTop: 18, borderTop: "1px solid #f1f5f9", gap: 12 }}>
+            {step > 0 && <button onClick={prev} style={{ ...btnSecondary, padding: "14px 24px" }}>← Back</button>}
             {step < 4 ? (
               <button onClick={next} disabled={!canProceed} style={{
-                ...btnPrimary, opacity: canProceed ? 1 : 0.4, cursor: canProceed ? "pointer" : "not-allowed",
+                ...btnPrimary, padding: "14px 24px", opacity: canProceed ? 1 : 0.4, cursor: canProceed ? "pointer" : "not-allowed",
               }}>Next →</button>
             ) : (
               <button onClick={handleSubmit} disabled={submitting} style={{
                 ...btnPrimary, background: SUCCESS, opacity: submitting ? 0.6 : 1,
-                display: "flex", alignItems: "center", gap: 8,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 24px",
               }}>
                 {submitting && <span style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", display: "inline-block", animation: "spin 0.6s linear infinite" }} />}
-                {submitting ? "Submitting..." : "✓ Submit Verification"}
+                {submitting ? "Submitting..." : "✓ Submit"}
               </button>
             )}
           </div>
