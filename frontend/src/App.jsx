@@ -105,28 +105,50 @@ function CameraView({ onCapture, label, mirrored = true }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [active, setActive] = useState(false);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
 
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: mirrored ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        video.setAttribute("playsinline", "true");
+        video.setAttribute("webkit-playsinline", "true");
+        // Wait for video dimensions to be available before enabling capture
+        video.onloadedmetadata = () => {
+          video.play().then(() => setReady(true)).catch(() => setReady(true));
+        };
+      }
       setActive(true); setError(null);
     } catch { setError("Camera access denied. Please allow camera permissions."); }
   };
 
-  const stopCamera = () => { streamRef.current?.getTracks().forEach(t => t.stop()); setActive(false); };
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    setActive(false); setReady(false);
+  };
 
   const capture = () => {
     const v = videoRef.current; if (!v) return;
-    const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+    // Use fallback dimensions if videoWidth is still 0
+    const w = v.videoWidth || v.clientWidth || 640;
+    const h = v.videoHeight || v.clientHeight || 480;
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
     const ctx = c.getContext("2d");
-    if (mirrored) { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
-    ctx.drawImage(v, 0, 0);
-    stopCamera(); onCapture(c.toDataURL("image/jpeg", 0.92));
+    if (mirrored) { ctx.translate(w, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(v, 0, 0, w, h);
+    const dataUrl = c.toDataURL("image/jpeg", 0.85);
+    // Verify capture isn't empty
+    if (dataUrl.length < 1000) {
+      setError("Capture failed — please wait a moment and try again.");
+      return;
+    }
+    stopCamera(); onCapture(dataUrl);
   };
 
   useEffect(() => () => streamRef.current?.getTracks().forEach(t => t.stop()), []);
@@ -140,9 +162,16 @@ function CameraView({ onCapture, label, mirrored = true }) {
         <div>
           <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", border: `3px solid ${ACCENT}`, display: "inline-block", maxWidth: "100%" }}>
             <video ref={videoRef} style={{ width: "100%", maxWidth: 520, display: "block", transform: mirrored ? "scaleX(-1)" : "none" }} autoPlay playsInline muted />
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.5))", padding: "20px 0 14px", textAlign: "center" }}>
-              <button onClick={capture} style={{ width: 60, height: 60, borderRadius: "50%", border: "4px solid #fff", background: "#ef4444", cursor: "pointer", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }} />
-            </div>
+            {ready && (
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.5))", padding: "20px 0 14px", textAlign: "center" }}>
+                <button onClick={capture} style={{ width: 60, height: 60, borderRadius: "50%", border: "4px solid #fff", background: "#ef4444", cursor: "pointer", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }} />
+              </div>
+            )}
+            {!ready && (
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.5)", padding: "16px 0", textAlign: "center", color: "#fff", fontSize: 13 }}>
+                Starting camera...
+              </div>
+            )}
           </div>
           <div style={{ marginTop: 10 }}>
             <button onClick={stopCamera} style={{ ...btnSecondary, padding: "8px 20px", fontSize: 13 }}>Cancel</button>
