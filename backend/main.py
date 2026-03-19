@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -212,8 +212,13 @@ Review at: https://verify.leapfour.work/admin
 
 # ---------------------------------------------------------------------------
 # App
+@asynccontextmanager
+async def lifespan(app):
+    init_db()
+    yield
+
 # ---------------------------------------------------------------------------
-app = FastAPI(title="Leapfour KYE Portal")
+app = FastAPI(title="Leapfour KYE Portal", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -221,11 +226,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def startup():
-    init_db()
 
 
 # ---------------------------------------------------------------------------
