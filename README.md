@@ -2,8 +2,8 @@
 
 Live employee verification portal with form, camera photo capture, document scanning, and 10-second video recording.
 
-**Live URL:** https://verify.leapfour.work  
-**Admin:** https://verify.leapfour.work/admin
+**Live URL:** https://kye.leapfour.work  
+**Admin:** https://kye.leapfour.work/admin
 
 ---
 
@@ -58,7 +58,7 @@ In the service → **Variables** tab, add:
 ### 5. Custom Domain
 
 1. In the service → **Settings** → **Networking** → **Custom Domain**
-2. Enter: `verify.leapfour.work`
+2. Enter: `kye.leapfour.work`
 3. Railway gives you a CNAME target (something like `xxx.up.railway.app`)
 4. Go to your domain registrar (wherever `leapfour.work` is registered)
 5. Add DNS record:
@@ -70,8 +70,8 @@ In the service → **Variables** tab, add:
 
 ### 6. Verify
 
-- Employee form: https://verify.leapfour.work
-- Admin dashboard: https://verify.leapfour.work/admin
+- Employee form: https://kye.leapfour.work
+- Admin dashboard: https://kye.leapfour.work/admin
 
 ---
 

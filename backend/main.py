@@ -23,6 +23,7 @@ DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "kye.db"
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "leapfour2026")
+PORTAL_URL = os.getenv("PORTAL_URL", "https://kye.leapfour.work").rstrip("/")
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -174,7 +175,7 @@ Email: {email or 'N/A'}
 Submission ID: {submission_id}
 Time: {datetime.now(timezone.utc).strftime('%d %b %Y, %I:%M %p UTC')}
 
-Review at: https://verify.leapfour.work/admin
+Review at: {PORTAL_URL}/admin
 """
         html = f"""
 <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
@@ -190,7 +191,7 @@ Review at: https://verify.leapfour.work/admin
       <tr><td style="padding:8px 0;color:#64748b;">Time</td><td style="padding:8px 0;">{datetime.now(timezone.utc).strftime('%d %b %Y, %I:%M %p UTC')}</td></tr>
     </table>
     <div style="margin-top:20px;text-align:center;">
-      <a href="https://verify.leapfour.work/admin" style="background:#0f3d5c;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
+      <a href="{PORTAL_URL}/admin" style="background:#0f3d5c;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
         Review Submission →
       </a>
     </div>
